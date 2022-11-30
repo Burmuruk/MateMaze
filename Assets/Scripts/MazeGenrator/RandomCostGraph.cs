@@ -33,7 +33,8 @@ namespace Mate.Clase.Maze
 
                     if ((i != j) && cond0 && !cond1 && !cond2)
                     {
-                        int cost = Random.Range(0, 101);
+                        var rand = new System.Random();
+                        int cost = rand.Next(0, 101);
                         edgeCost.Add(pair1, cost);
                         edgeCost.Add(pair2, cost);
                     }

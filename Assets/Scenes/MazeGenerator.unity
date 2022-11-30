@@ -490,7 +490,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   nodeSprite: {fileID: 9057703880384396911}
   wallPref: {fileID: 6827670670616698341}
-  size: {x: 10, y: 10}
+  size: {x: 30, y: 30}
   mazeCompleted: 0
   mazeNodes: []
 --- !u!1 &1857708431
@@ -653,7 +653,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1937942954}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalPosition: {x: 5, y: 4.5, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Threading;
+using System;
 
 namespace Mate.Clase.Maze
 {
@@ -20,27 +22,118 @@ namespace Mate.Clase.Maze
         public List<Vector2> mazeNodes;
         private bool areWallsReady = false;
 
-        private List<(GameObject item, Vector3 newPosition)> Walls;
+        private List<Wall> Walls = new List<Wall>();
         private int wallsIndex = 0;
         private bool needMoveWalls = false;
+        bool continueAlgo = false;
+        bool initialized = false;
+
+        Thread Algorithem;
+        Thread Initialize;
+
+        //Process
+        bool areNodesReady = false;
 
         private class Wall
         {
             public GameObject wall;
+            public Vector3 newPosition;
+            public float distance = 0;
             //public bool Needed
+
+            public Wall(Vector3 newPosition)
+            {
+                this.newPosition = newPosition;
+            }
+
+            public Wall(GameObject wall, Vector3 newPosition)
+            {
+                this.wall = wall;
+                this.newPosition = newPosition;
+            }
         }
 
+        #region Unity methods
         void Awake()
         {
-            graph = new RandomCostGraph(size.x, size.y);
-            Walls = new List<(GameObject, Vector3 newPosition)>();
+            Walls = new List<Wall>();
+            Algorithem = new Thread(CalculateAlgo);
+            Initialize = new Thread(InitializeGrid);
         }
 
         void Start()
         {
-            CreateGraphSprites();
+            Initialize.Start();
+            Invoke("CreateGraphSprites", .5f);
+        }
+
+        void Update()
+        {
+            if (!initialized) return;
+
+            MST_Algorithm();
+
+            if (Input.GetKeyDown(KeyCode.H) && mazeCompleted)
+            {
+                RestartVariables();
+
+                Initialize.Start();
+            }
+
+            if (needMoveWalls)
+            {
+                foreach (var wall in Walls)
+                {
+                    wall.wall.transform.Translate((wall.newPosition - wall.wall.transform.position) * Time.deltaTime * .8f, Space.World);
+                    Debug.DrawRay(wall.wall.transform.position, wall.newPosition - wall.wall.transform.position);
+                }
+            }
+        }
+        #endregion
+
+        #region public methods
+        public List<Vector2> MazeNeighbours(Vector2 node)
+        {
+            List<Vector2> directions =
+                        new List<Vector2> {Vector2.right, Vector2.up,
+                                        Vector2.left, Vector2.down };
+
+            List<Vector2> result = new List<Vector2>();
+            foreach (Vector2 direction in directions)
+            {
+                Vector2 neighbour = node + direction;
+
+                int i = mazeNodes.IndexOf(node);
+                int j = mazeNodes.IndexOf(neighbour);
+
+                Vector2Int pair1 = new Vector2Int(i, j);
+                Vector2Int pair2 = new Vector2Int(j, i);
+
+                if (mazeNodes.Contains(neighbour) && (T.Contains(pair1) || T.Contains(pair2)))
+                    result.Add(neighbour);
+            }
+            return result;
+        }
+
+        public void Restart_Maze()
+        {
+            if (!mazeCompleted) return;
+
+            RestartVariables();
+            Initialize.Start();
+        }
+        #endregion
+
+        #region Private methods
+        void InitializeGrid()
+        {
+            graph = new RandomCostGraph(size.x, size.y);
+
+            Debug.Log("GridCreated");
+
             // Initialize S1
-            int i = Random.Range(0, graph.nodes.Count);
+            var rand = new System.Random();
+            int i = rand.Next(0, graph.nodes.Count);
             Vector2 u = graph.nodes[i];
             S1.Add(u);
 
@@ -58,62 +151,60 @@ namespace Mate.Clase.Maze
                 }
             }
 
+            Debug.Log("finishGrid");
+            initialized = true;
         }
 
-        void Update()
+        private void RestartVariables()
         {
-            MST_Algorithm();
+            continueAlgo = false;
+            mazeCompleted = false;
+            initialized = false;
+            S1 = new List<Vector2>();
+            T = new List<Vector2Int>();
+            S2 = new List<Vector2>();
+            E = new List<Vector2Int>();
 
-            if (Input.GetKeyDown(KeyCode.H))
-            {
-                mazeCompleted = false;
-
-                graph = new RandomCostGraph(size.x, size.y);
-                CreateGraphSprites();
-
-                S1 = new List<Vector2>();
-                T = new List<Vector2Int>();
-                S2 = new List<Vector2>();
-                E = new List<Vector2Int>();
-
-                int i = Random.Range(0, graph.nodes.Count);
-                Vector2 u = graph.nodes[i];
-                S1.Add(u);
-
-                // Initialize S2
-                S2 = graph.GraphWithout(u);
-
-                // Initialize E
-                foreach (Vector2 v in S2)
-                {
-                    int j = graph.nodes.IndexOf(v);
-                    Vector2Int pair = new Vector2Int(i, j);
-                    if (graph.edgeCost.ContainsKey(pair))
-                    {
-                        E.Add(pair);
-                    }
-                }
-            }
-
-            if (needMoveWalls)
-            {
-                foreach (var wall in Walls)
-                {
-                    if (Vector3.Distance(wall.item.transform.position, wall.newPosition) > .2f)
-                        wall.Item1.transform.Translate(wall.newPosition * Time.deltaTime * .8f, Space.World);
-                } 
-            }
+            Initialize = new Thread(InitializeGrid);
+            Algorithem = new Thread(CalculateAlgo);
         }
 
         void MST_Algorithm()
         {
-            if (S2.Count > 0 && !mazeCompleted)
+            if (initialized && Algorithem.ThreadState == ThreadState.Unstarted)
             {
+                print("Vamos");
+                print(Algorithem.ThreadState);
+                Algorithem.Start();
+                Algorithem.Join();
+            }
+
+            if (!mazeCompleted)
+            {
+                print("Continue");
+                Debug.Log("END!");
+
+                mazeCompleted = true;
+
+                CreateMazeBorders();
+                CreateMazeWalls();
+                mazeNodes = new List<Vector2>();
+                mazeNodes = graph.nodes;
+                mazeNodes = new List<Vector2>();
+            }
+        }
+
+        void CalculateAlgo()
+        {
+            continueAlgo = false;
+
+            while (S2.Count > 0 && !continueAlgo)
+            {
+                Debug.Log("hi");
                 Vector2Int minCostPair = Vector2Int.zero;
                 int minCost = 1000000;
                 foreach (Vector2Int pair in E)
                 {
-
                     if (graph.edgeCost[pair] < minCost)
                     {
                         minCost = graph.edgeCost[pair];
@@ -145,25 +236,20 @@ namespace Mate.Clase.Maze
 
                 if (S2.Count == 0)
                 {
-                    Debug.Log("END!");
-
-                    mazeCompleted = true;
-
-                    CreateMazeBorders();
-                    CreateMazeWalls();
-                    mazeNodes = new List<Vector2>();
-                    mazeNodes = graph.nodes;
-                    mazeNodes = new List<Vector2>();
+                    Debug.Log("finished");
+                    continueAlgo = true;
                 }
             }
         }
 
         void CreateGraphSprites()
         {
-            foreach (Vector2 v in graph.nodes)
-            {
-                GameObject gO = Instantiate(nodeSprite, v, Quaternion.identity, this.transform.Find("Nodes"));
-            }
+            //foreach (Vector2 v in graph.nodes)
+            //{
+            //    GameObject gO = Instantiate(nodeSprite, v, Quaternion.identity, this.transform.Find("Nodes"));
+            //}
+
+            StartCoroutine(Create_Sprites());
         }
 
         void CreateMazeBorders()
@@ -192,12 +278,6 @@ namespace Mate.Clase.Maze
 
         void CreateMazeWalls()
         {
-            if (areWallsReady)
-            {
-                //ChangeWallsPosition();
-                //return;
-            }
-
             for (int i = 0; i < graph.nodes.Count; i++)
                 for (int j = 0; j < graph.nodes.Count; j++)
                 {
@@ -205,77 +285,83 @@ namespace Mate.Clase.Maze
                     {
                         Vector2Int pair1 = new Vector2Int(i, j);
                         Vector2Int pair2 = new Vector2Int(j, i);
+
                         if (!T.Contains(pair1) && !T.Contains(pair2))
                         {
                             Vector2 nodei = graph.nodes[i];
                             Vector2 nodej = graph.nodes[j];
                             Vector2 wallPos = 0.5f * (nodei + nodej);
                             ChangeWallsPosition(wallPos, nodei.x - nodej.x, nodei.y - nodej.y);
-
-                            
                         }
                     }
                 }
 
+            wallsIndex = 0;
             areWallsReady = true;
         }
 
         private void ChangeWallsPosition(Vector2 wallPos, float sizeX, float sizeY)
         {
-            
-            print(Walls.Count);
-
             if (!areWallsReady)
             {
-                wallsIndex = 0;
                 GameObject wall = Instantiate(wallPref, wallPos, Quaternion.identity, this.transform.Find("Walls"));
                 Vector3 scaleVector = new Vector3(Mathf.Abs(sizeX), Mathf.Abs(sizeY), 0);
                 wall.transform.localScale = Vector3.one - 0.9f * scaleVector;
 
-                Walls.Add((wall, wallPos));
+                Walls.Add(new Wall(wall, wallPos));
             }
             else
             {
-                Walls[wallsIndex].item.transform.position = wallPos;
+                Walls[wallsIndex].newPosition = wallPos;
+                Walls[wallsIndex].distance = (Walls[wallsIndex].newPosition * Time.deltaTime * .8f).magnitude;
                 Vector3 scaleVector = new Vector3(Mathf.Abs(sizeX), Mathf.Abs(sizeY), 0);
-                Walls[wallsIndex].item.transform.localScale = Vector3.one - 0.9f * scaleVector;
+                Walls[wallsIndex].wall.transform.localScale = Vector3.one - 0.9f * scaleVector;
 
                 needMoveWalls = true;
                 wallsIndex++;
             }
-            //for (int i = 0; i < graph.nodes.Count; i++)
-            //    for (int j = 0; j < graph.nodes.Count; j++)
-
         }
 
         void Create_Wall()
         {
 
-        }
+        } 
+        #endregion
 
-        public List<Vector2> MazeNeighbours(Vector2 node)
+        #region Corutines
+        private IEnumerator Create_Sprites()
         {
-            List<Vector2> directions =
-                        new List<Vector2> {Vector2.right, Vector2.up,
-                                        Vector2.left, Vector2.down };
+            int index = 0;
 
-            List<Vector2> result = new List<Vector2>();
-            foreach (Vector2 direction in directions)
+            while (true)
             {
-                Vector2 neighbour = node + direction;
+                if (graph == null)
+                {
+                    yield return new WaitForSeconds(.1f);
+                    continue;
+                }
 
-                int i = mazeNodes.IndexOf(node);
-                int j = mazeNodes.IndexOf(neighbour);
-
-                Vector2Int pair1 = new Vector2Int(i, j);
-                Vector2Int pair2 = new Vector2Int(j, i);
-
-                if (mazeNodes.Contains(neighbour) && (T.Contains(pair1) || T.Contains(pair2)))
-                    result.Add(neighbour);
+                if (index < graph.nodes.Count)
+                {
+                    Instantiate(nodeSprite, graph.nodes[index], Quaternion.identity, this.transform.Find("Nodes"));
+                    index++;
+                    yield return new WaitForSeconds(.07f);
+                }
+                else if (!areNodesReady)
+                    yield return new WaitForSeconds(1);
+                else
+                    break;
             }
-            return result;
+
+            yield break;
         }
+
+        private IEnumerator Create_Walls()
+        {
+
+
+            yield break;
+        } 
+        #endregion
     }
-
-
 }

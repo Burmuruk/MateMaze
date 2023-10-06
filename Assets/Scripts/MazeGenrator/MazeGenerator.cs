@@ -63,8 +63,9 @@ namespace Mate.Clase.Maze
 
         void Start()
         {
-            Initialize.Start();
-            Invoke("CreateGraphSprites", .5f);
+            //Initialize.Start();
+            InitializeGrid();
+            //Invoke("CreateGraphSprites", .5f);
         }
 
         void Update()
@@ -127,7 +128,7 @@ namespace Mate.Clase.Maze
         #region Private methods
         void InitializeGrid()
         {
-            graph = new RandomCostGraph(size.x, size.y);
+            graph = new RandomCostGraph(size.x, size.y, new Vector2Int(size.x / 2, size.y / 2));
 
             Debug.Log("GridCreated");
 
@@ -143,6 +144,7 @@ namespace Mate.Clase.Maze
             // Initialize E
             foreach (Vector2 v in S2)
             {
+                Debug.Log(v);
                 int j = graph.nodes.IndexOf(v);
                 Vector2Int pair = new Vector2Int(i, j);
                 if (graph.edgeCost.ContainsKey(pair))
@@ -152,7 +154,7 @@ namespace Mate.Clase.Maze
             }
 
             Debug.Log("finishGrid");
-            initialized = true;
+            //initialized = true;
         }
 
         private void RestartVariables()
@@ -325,7 +327,7 @@ namespace Mate.Clase.Maze
         void Create_Wall()
         {
 
-        } 
+        }
         #endregion
 
         #region Corutines
@@ -361,7 +363,7 @@ namespace Mate.Clase.Maze
 
 
             yield break;
-        } 
+        }
         #endregion
     }
 }
